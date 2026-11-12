@@ -46,16 +46,13 @@ struct ExpandedView: View {
         VStack(spacing: 0) {
             // Top band beside the camera housing.
             HStack(spacing: 0) {
-                HStack(spacing: 2) {
-                    tabButton("Home", symbol: "house.fill", tab: .home)
-                    tabButton("Devices", symbol: "laptopcomputer.and.iphone", tab: .devices)
-                    if vm.launcher.settings.shelfEnabled || !vm.launcher.shelf.items.isEmpty {
-                        tabButton("Shelf", symbol: "tray.full.fill", tab: .shelf)
-                    }
-                    tabButton("Notifications", symbol: "bell.fill", tab: .notifications, count: store.visibleHistory.count)
-                    Spacer(minLength: 0)
+                // With four tabs, "Notifications" plus its count is wider than the space beside the
+                // camera and slid under it; then the selected tab drops its title (kept as tooltip).
+                ViewThatFits(in: .horizontal) {
+                    tabRow(titled: true)
+                    tabRow(titled: false)
                 }
-                .frame(width: sideWidth)
+                .frame(width: sideWidth, alignment: .leading)
                 Spacer(minLength: 0)
                 HStack(spacing: 12) {
                     Spacer(minLength: 0)
@@ -93,13 +90,26 @@ struct ExpandedView: View {
         .padding(.bottom, 16)
     }
 
+    private func tabRow(titled: Bool) -> some View {
+        HStack(spacing: 2) {
+            tabButton("Home", symbol: "house.fill", tab: .home, titled: titled)
+            tabButton("Devices", symbol: "laptopcomputer.and.iphone", tab: .devices, titled: titled)
+            if vm.launcher.settings.shelfEnabled || !vm.launcher.shelf.items.isEmpty {
+                tabButton("Shelf", symbol: "tray.full.fill", tab: .shelf, titled: titled)
+            }
+            tabButton("Notifications", symbol: "bell.fill", tab: .notifications, count: store.visibleHistory.count,
+                      titled: titled)
+        }
+    }
+
     /// Icon tabs; the selected one also shows its title (three titles don't fit beside the camera).
-    private func tabButton(_ title: String, symbol: String, tab: NotchViewModel.ExpandedTab, count: Int? = nil) -> some View {
+    private func tabButton(_ title: String, symbol: String, tab: NotchViewModel.ExpandedTab, count: Int? = nil,
+                           titled: Bool = true) -> some View {
         let selected = vm.expandedTab == tab
         return Button { vm.expandedTab = tab } label: {
             HStack(spacing: 5) {
                 Image(systemName: symbol).font(.system(size: 10.5, weight: .semibold))
-                if selected {
+                if selected && titled {
                     Text(title).font(.system(size: 11.5, weight: .semibold)).lineLimit(1).fixedSize()
                 }
                 if let count, count > 0 {
