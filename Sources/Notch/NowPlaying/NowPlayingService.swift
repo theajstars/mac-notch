@@ -175,8 +175,22 @@ final class NowPlayingService: ObservableObject {
     }
 
     private func apply(_ new: NowPlayingInfo) {
+        var new = new
         let trackChanged = info?.trackKey != new.trackKey
         let bundleChanged = info?.bundleID != new.bundleID
+        // MediaRemote's position for Spotify runs a few tenths of a second behind Spotify's own clock
+        // (the one its lyrics view uses), so every Spotify update is checked against `player position`.
+        if new.bundleID == Self.spotifyID, !usingFallback {
+            let now = Date()
+            if !trackChanged, let old = info, abs(new.elapsed(at: now) - old.elapsed(at: now)) > Self.positionJumpTolerance {
+                // Spotify sometimes re-reports an old elapsed time with a fresh timestamp (seen: a song
+                // at 1:17 reported as 0:03), which throws the lyrics far off until the next pause. Keep
+                // the running position until Spotify says whether it really moved (a seek).
+                new.elapsed = old.elapsed(at: now)
+                new.timestamp = now
+            }
+            verifySpotifyPosition(of: new.trackKey)
+        }
         info = new
         if trackChanged {
             let key = new.trackKey
@@ -191,6 +205,30 @@ final class NowPlayingService: ObservableObject {
             }
         }
         updateVisibility()
+    }
+
+    private static let spotifyID = "com.spotify.client"
+    /// Seconds a same-track update may move the position before it is held for Spotify to confirm.
+    private static let positionJumpTolerance: Double = 2
+    /// Smallest gap to Spotify's own position worth correcting (the AppleScript call takes ~0.2 s,
+    /// but Spotify samples its position near the end of it).
+    private static let positionCorrectionTolerance: Double = 0.15
+
+    /// Replaces the position with Spotify's own `player position`, if the track is still current.
+    private func verifySpotifyPosition(of key: String) {
+        // The name guards against reading the previous track's position right at a track change.
+        let script = "tell application \"Spotify\" to return (player position as string) & linefeed & (name of current track)"
+        AppleScriptRunner.run(script) { [weak self] out in
+            guard let self, var i = self.info, i.trackKey == key,
+                  let parts = out?.components(separatedBy: "\n"), parts.count >= 2, parts[1] == i.title,
+                  let pos = Double(parts[0].replacingOccurrences(of: ",", with: ".")) else { return }
+            let drift = pos - i.elapsed(at: Date())
+            guard abs(drift) > Self.positionCorrectionTolerance else { return }
+            DebugLog.write("now playing: Spotify position corrected by \(String(format: "%+.2f", drift))s")
+            i.elapsed = pos
+            i.timestamp = Date()
+            self.info = i
+        }
     }
 
     private func updateVisibility() {
