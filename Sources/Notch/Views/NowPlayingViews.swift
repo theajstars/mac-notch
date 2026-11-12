@@ -386,11 +386,30 @@ struct MusicPeekView: View {
             }
 
             // Notifications are always listed under the player.
-            HStack {
+            // Count in a pill beside the title; "View all" opens the full list on the Notifications tab.
+            HStack(spacing: 6) {
                 Text("Notifications").font(.system(size: 11, weight: .semibold)).foregroundStyle(.white.opacity(0.6))
+                let count = store.visibleHistory.count
+                if count > 0 {
+                    Text(count > 99 ? "99+" : "\(count)")
+                        .font(.system(size: 9.5, weight: .bold))
+                        .foregroundStyle(.white.opacity(0.75))
+                        .padding(.horizontal, 5).padding(.vertical, 1)
+                        .background(Capsule().fill(.white.opacity(0.14)))
+                }
                 Spacer()
-                if !store.visibleHistory.isEmpty {
-                    Text("\(store.visibleHistory.count)").font(.system(size: 10)).foregroundStyle(.white.opacity(0.4))
+                if count > 0 {
+                    Button { vm.expand(tab: .notifications) } label: {
+                        HStack(spacing: 2) {
+                            Text("View all")
+                            Image(systemName: "chevron.right").font(.system(size: 8, weight: .semibold))
+                        }
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.6))
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .help("Open all notifications")
                 }
             }
             .padding(.top, 10)
