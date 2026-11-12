@@ -184,10 +184,10 @@ final class NotchViewModel: ObservableObject {
         return hgt + 14
     }
 
-    /// (left wing, right wing) for the compact states. Calls past an hour widen both wings
-    /// symmetrically so "1:02:33" fits.
+    /// (left wing, right wing) for the compact states. Calls widen both wings symmetrically so the
+    /// timer ("57:00", or "1:02:33" past an hour) keeps the same margin as the icon opposite it.
     var wings: (CGFloat, CGFloat) {
-        if state == .call, calls.pastHour { return (wing + 12, wing + 12) }
+        if state == .call { return calls.pastHour ? (wing + 24, wing + 24) : (wing + 12, wing + 12) }
         if state == .timer, let t = timers.timer, (t.remaining() ?? t.elapsed()) >= 3600 { return (wing + 12, wing + 12) }
         if state == .timer { return (wing, wing + 8) }
         if state == .moment, case .text(let t, _)? = moment?.right, t.count > 3 { return (wing + 8, wing + 8) }

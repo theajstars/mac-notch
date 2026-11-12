@@ -24,10 +24,15 @@ struct CompactCallView: View {
     var body: some View {
         let h = vm.geometry.notchSize.height
         let (left, right) = vm.wings
+        let iconSize = min(22, h - 12)
+        // Icon and timer sit the same visible distance from the notch's outer edges. App icons carry
+        // ~10% transparent margin, so the timer gets that much more.
+        let inset = (vm.wing - iconSize) / 2
+        let timerInset = inset + iconSize * 0.1
         if let call = calls.call {
             HStack(spacing: 0) {
                 ZStack(alignment: .bottomTrailing) {
-                    AppIconView(bundleID: call.iconBundleID, size: min(22, h - 12))
+                    AppIconView(bundleID: call.iconBundleID, size: iconSize)
                     if calls.micMuted == true {
                         Image(systemName: "mic.slash.fill")
                             .font(.system(size: 6.5, weight: .bold))
@@ -37,12 +42,14 @@ struct CompactCallView: View {
                             .offset(x: 4, y: 3)
                     }
                 }
-                .frame(width: left)
+                .padding(.leading, inset)
+                .frame(width: left, alignment: .leading)
                 Color.clear.frame(width: vm.gapWidth)
                 CallTimerText(started: call.started)
                     .font(.system(size: 11.5, weight: .semibold))
                     .foregroundStyle(callGreen)
-                    .frame(width: right)
+                    .padding(.trailing, timerInset)
+                    .frame(width: right, alignment: .trailing)
             }
             .frame(height: h)
             .padding(.horizontal, vm.topRadius)
