@@ -82,14 +82,14 @@ final class CallMonitor: ObservableObject {
             pastHour = call.map { now.timeIntervalSince($0.started) >= 3600 } ?? false
             return
         }
-        if let found = Self.findCallApp(anyApp: settings.callsAnyApp) {
+        let candidates = Self.findCallApps(anyApp: settings.callsAnyApp)
+        if let found = candidates.first {
             lastSeen = now
-            if var c = call {
+            if let c = call {
                 // Same call, possibly handed to another process (e.g. FaceTime -> avconferenced).
-                if c.iconBundleID != found.iconBundleID, found.browserBundleID == nil {
-                    c.iconBundleID = found.iconBundleID
-                    c.name = found.name
-                    call = c
+                if let next = c.handedOff(to: candidates) {
+                    DebugLog.write("call handed off: \(c.name) -> \(next.name) (\(next.iconBundleID))")
+                    call = next
                 }
             } else {
                 let since = candidateSince ?? now
@@ -203,8 +203,9 @@ final class CallMonitor: ObservableObject {
         id == prefix || id.hasPrefix(prefix + ".")
     }
 
-    private static func findCallApp(anyApp: Bool) -> ActiveCall? {
-        var best: (ActiveCall, Int)?   // (call, priority): call app 3, FaceTime/phone 2, browser 1, other 0
+    /// Every app recording right now, one entry per app, highest priority first.
+    private static func findCallApps(anyApp: Bool) -> [ActiveCall] {
+        var found: [(ActiveCall, Int)] = []   // (call, priority): call app 3, FaceTime/phone 2, browser 1, other 0
         for (pid, rawID) in micProcesses() {
             let id = rawID
             if ignored.contains(where: { matches(id, $0) }) { continue }
@@ -224,9 +225,10 @@ final class CallMonitor: ObservableObject {
                       app.activationPolicy == .regular, let appID = app.bundleIdentifier {
                 candidate = (ActiveCall(iconBundleID: appID, name: app.localizedName ?? appID, started: Date()), 0)
             }
-            if let c = candidate, c.1 > (best?.1 ?? -1) { best = c }
+            if let c = candidate, !found.contains(where: { $0.0.iconBundleID == c.0.iconBundleID }) { found.append(c) }
         }
-        return best?.0
+        // Stable: within a priority, CoreAudio's order decides, as before.
+        return found.enumerated().sorted { ($0.element.1, -$0.offset) > ($1.element.1, -$1.offset) }.map(\.element.0)
     }
 
     private static func shortBrowserName(_ s: String) -> String {
